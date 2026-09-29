@@ -1,0 +1,1559 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Day 12 Agent</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f0f2f5;
+    --border: #dfe3e8;
+    --text: #1b1f24;
+    --muted: #5f6b7a;
+    --accent: #2f6fed;
+    --accent-text: #ffffff;
+    --user-bubble: #2f6fed;
+    --user-text: #ffffff;
+    --ok: #1f8a4c;
+    --ok-bg: #e3f4ea;
+    --warn: #a15c00;
+    --warn-bg: #fdf0dc;
+    --err: #c0362c;
+    --err-bg: #fbe5e3;
+    --tip-bg: #1b1f24;
+    --tip-text: #f3f5f7;
+    --tip-muted: #b3bcc7;
+    --tip-code: #2a3038;
+    --tip-now: #1f3b2b;
+    --tip-now-text: #9be3b8;
+    --radius: 12px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216;
+      --surface: #171b21;
+      --surface-2: #1f242c;
+      --border: #2c333d;
+      --text: #e6e9ed;
+      --muted: #97a1ad;
+      --accent: #5b8cff;
+      --user-bubble: #3b6fe0;
+      --ok: #4cc27f;
+      --ok-bg: #16301f;
+      --warn: #f0b35a;
+      --warn-bg: #33270f;
+      --err: #f07167;
+      --err-bg: #3a1a18;
+      --tip-bg: #f3f5f7;
+      --tip-text: #1b1f24;
+      --tip-muted: #5f6b7a;
+      --tip-code: #e3e7ec;
+      --tip-now: #e3f4ea;
+      --tip-now-text: #1f6b3d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  code { font-family: var(--mono); font-size: .92em; }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 17px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .pills { margin-left: auto; display: flex; gap: 8px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-family: var(--mono);
+    background: var(--surface-2); color: var(--muted);
+    border: 1px solid var(--border);
+    cursor: help;
+  }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); border-color: transparent; }
+  .pill.bad { color: var(--err); background: var(--err-bg); border-color: transparent; }
+
+  .view-chat {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px 20px;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  aside { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+  .card h2 {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); margin: 0 0 10px;
+  }
+  .card h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 8px 0 4px; }
+  input, textarea {
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .key-row { display: flex; gap: 6px; }
+  .key-row input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; }
+  button {
+    font: inherit;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+  /* Nút ⓘ mở giải thích */
+  .info {
+    display: inline-grid; place-items: center;
+    width: 17px; height: 17px; padding: 0;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    background: transparent;
+    color: var(--muted);
+    font: 600 11px/1 system-ui, sans-serif;
+    font-style: italic;
+    cursor: help;
+    flex: none;
+  }
+  .info:hover, .info[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+  [data-help]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .tools { display: grid; gap: 8px; }
+  .tools button { text-align: left; }
+  .codes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .code {
+    font-family: var(--mono); font-size: 12px;
+    padding: 2px 6px; border-radius: 6px;
+    cursor: help;
+  }
+  .c2 { color: var(--ok); background: var(--ok-bg); }
+  .c4 { color: var(--warn); background: var(--warn-bg); }
+  .c5, .cx { color: var(--err); background: var(--err-bg); }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat {
+    position: relative;
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 26px 8px 10px;
+    cursor: help;
+  }
+  .stat:hover { border-color: var(--border); }
+  .stat::after {
+    content: "i";
+    position: absolute; top: 7px; right: 8px;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid currentColor;
+    color: var(--muted);
+    font: italic 600 9px/12px system-ui, sans-serif;
+    text-align: center;
+    opacity: .6;
+  }
+  .stat b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 12px; color: var(--muted); }
+
+  .chat {
+    display: flex; flex-direction: column;
+    min-height: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .empty { margin: auto; text-align: center; color: var(--muted); max-width: 440px; }
+  .empty h3 { color: var(--text); margin: 0 0 6px; font-size: 16px; }
+  .empty p { margin: 0 0 8px; }
+  .msg { max-width: 80%; display: flex; flex-direction: column; gap: 4px; }
+  .msg .bubble { padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.user .bubble { background: var(--user-bubble); color: var(--user-text); border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; }
+  .msg.bot .bubble { background: var(--surface-2); border-bottom-left-radius: 4px; }
+  .msg.error { align-self: stretch; max-width: 100%; }
+  .msg.error .bubble { background: var(--err-bg); color: var(--err); border-radius: 10px; font-size: 14px; }
+  .msg.warn .bubble { background: var(--warn-bg); color: var(--warn); }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip {
+    font-size: 12px; font-family: var(--mono);
+    color: var(--muted);
+    padding: 1px 7px;
+    border: 1px dashed var(--border);
+    border-radius: 999px;
+    cursor: help;
+  }
+  .chip:hover { color: var(--text); border-color: var(--muted); }
+  form.composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+  form.composer textarea { resize: none; height: 44px; }
+
+  /* Hộp giải thích */
+  #tip {
+    position: fixed; left: 0; top: 0; z-index: 10;
+    width: max-content; max-width: min(340px, calc(100vw - 16px));
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--tip-bg); color: var(--tip-text);
+    font-size: 13px; line-height: 1.45;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+    pointer-events: none;
+  }
+  #tip[hidden] { display: none; }
+  #tip.pinned { pointer-events: auto; }
+  #tip h4 { margin: 0 0 4px; font-size: 13px; }
+  #tip p { margin: 0 0 6px; }
+  #tip p:last-child { margin-bottom: 0; }
+  #tip .lbl { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--tip-muted); margin: 8px 0 3px; }
+  #tip .calc { font-family: var(--mono); font-size: 12px; background: var(--tip-code); border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; }
+  #tip .now { font-family: var(--mono); font-size: 12px; background: var(--tip-now); color: var(--tip-now-text); border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; }
+  #tip .close-hint { color: var(--tip-muted); font-size: 11px; margin-top: 8px; }
+
+  /* ── Menu ─────────────────────────────────────────────── */
+  .tabs { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+  .tabs a {
+    padding: 5px 14px; border-radius: 7px;
+    color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
+  }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  [hidden] { display: none !important; }
+
+  /* ── Sơ đồ tuần tự ────────────────────────────────────── */
+  .sub-sec { font-size: 15px; margin: 22px 0 4px; }
+  .seq-hint { display: none; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .seq-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 8px; }
+  .seq { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); min-width: 640px; }
+  .seq .lane {
+    grid-row: 1; margin: 0 6px 6px; padding: 6px 8px; text-align: center;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; z-index: 1;
+  }
+  .seq .lane b { display: block; font-size: 13px; }
+  .seq .lane small { font: 11px var(--mono); color: var(--muted); }
+  .seq .life { justify-self: center; width: 0; border-left: 1px dashed var(--border); }
+  .seq .phase { grid-column: 1 / -1; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border); z-index: 1; }
+  .seq .phase span { background: var(--surface); padding-right: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .seq .m { position: relative; padding: 4px 0 14px; z-index: 1; }
+  .seq .m .lab { text-align: center; font-size: 12px; line-height: 1.35; }
+  .seq .m .lab b { font-family: var(--mono); font-size: 12px; }
+  .seq .m .lab small { display: block; color: var(--muted); font-size: 11px; }
+  .seq .m .line { position: absolute; bottom: 7px; border-top: 1.5px solid var(--accent); }
+  .seq .m .line::after { content: ""; position: absolute; top: -5.5px; border: 5px solid transparent; }
+  .seq .m.right .line::after { right: -2px; border-left: 8px solid var(--accent); border-right-width: 0; }
+  .seq .m.left .line::after { left: -2px; border-right: 8px solid var(--accent); border-left-width: 0; }
+  .seq .m.resp .line { border-top-style: dashed; border-color: var(--muted); }
+  .seq .m.resp.left .line::after { border-right-color: var(--muted); }
+  .seq .m.db .line { border-color: var(--ok); }
+  .seq .m.db.right .line::after { border-left-color: var(--ok); }
+  .seq .self {
+    justify-self: center; align-self: center; margin: 4px 6px; padding: 4px 8px; z-index: 1;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 12px; text-align: center; max-width: calc(100% - 12px);
+  }
+  .seq .ecode { display: inline-block; vertical-align: 1px; font: 600 10px/1 var(--mono); color: var(--warn); background: var(--warn-bg); border-radius: 4px; padding: 2px 4px; margin-left: 4px; white-space: nowrap; }
+
+  /* ── Trang Pipeline ───────────────────────────────────── */
+  .view-pipeline { flex: 1; min-height: 0; overflow-y: auto; }
+  .pipe { max-width: 980px; margin: 0 auto; padding: 24px 20px 64px; }
+  .pipe h2.sec { font-size: 18px; margin: 36px 0 6px; }
+  .pipe .lead { color: var(--muted); margin: 0 0 14px; }
+  .hero h1 { font-size: 24px; margin: 0 0 6px; }
+  .hero p { color: var(--muted); margin: 0; max-width: 720px; }
+  .hero .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .hero .links a, .btn-link {
+    font-size: 13px; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; background: var(--surface);
+  }
+  .hero .links a:hover { border-color: var(--accent); }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+  .kpi b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: 12px; color: var(--muted); }
+
+  .flow { display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px; }
+  .node {
+    flex: 1 1 0; min-width: 120px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-size: 13px;
+  }
+  .node b { display: block; font-size: 14px; margin-bottom: 2px; }
+  .node small { color: var(--muted); display: block; }
+  .node.accent { border-color: var(--accent); }
+  .node.gate b::after { content: attr(data-code); margin-left: 6px; font: 600 11px var(--mono); color: var(--warn); background: var(--warn-bg); border-radius: 4px; padding: 1px 4px; }
+  .arrow { align-self: center; color: var(--muted); font-size: 18px; flex: none; }
+  .flow-caption { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .live { display: grid; gap: 8px; }
+  .live-row {
+    display: grid; grid-template-columns: 26px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; align-items: center;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .live-row code { word-break: break-all; }
+  .live-row .res { font-family: var(--mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+  .mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; background: var(--surface-2); color: var(--muted); }
+  .mark.pass { background: var(--ok-bg); color: var(--ok); }
+  .mark.fail { background: var(--err-bg); color: var(--err); }
+
+  .jump { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 0; background: var(--bg); }
+  .jump button { font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+  .jump button.active { border-color: var(--accent); color: var(--accent); }
+
+  details.step {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    margin-bottom: 12px; scroll-margin-top: 60px;
+  }
+  details.step > summary {
+    list-style: none; cursor: pointer;
+    display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+    padding: 14px 16px;
+  }
+  details.step > summary::-webkit-details-marker { display: none; }
+  .num {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 700; font-size: 14px;
+    background: var(--ok-bg); color: var(--ok);
+  }
+  .num.pending { background: var(--warn-bg); color: var(--warn); }
+  .num.extra { background: var(--surface-2); color: var(--muted); }
+  .step-title b { display: block; font-size: 15px; }
+  .step-title span { font-size: 13px; color: var(--muted); }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .badge { font: 600 11px/1 var(--mono); padding: 4px 7px; border-radius: 6px; white-space: nowrap; }
+  .badge.ok { color: var(--ok); background: var(--ok-bg); }
+  .badge.wait { color: var(--warn); background: var(--warn-bg); }
+  .badge.neutral { color: var(--muted); background: var(--surface-2); }
+  .step-body { padding: 0 16px 16px 64px; }
+  .step-body h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; }
+  .step-body ul { margin: 0; padding-left: 18px; }
+  .step-body li { margin: 3px 0; }
+  .table-wrap { overflow-x: auto; }
+  table.req { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.req th, table.req td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  table.req th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  table.req td:last-child { color: var(--ok); }
+  pre.snip {
+    margin: 0; padding: 10px 12px; border-radius: 8px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    font: 12px/1.5 var(--mono); overflow-x: auto; white-space: pre;
+  }
+  .evidence { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+  .ev { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .ev b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .ev span { color: var(--muted); font-size: 12px; }
+  .issue { border-left: 3px solid var(--warn); background: var(--warn-bg); border-radius: 0 8px 8px 0; padding: 8px 12px; font-size: 13px; margin-top: 6px; }
+  .issue b { color: var(--warn); }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  @media (max-width: 760px) {
+    html, body { height: auto; }
+    header { padding: 12px 16px; }
+    .pills { margin-left: 0; flex-wrap: wrap; }
+    .view-pipeline { overflow: visible; }
+    .seq-hint { display: block; }
+    .pipe { padding: 16px 16px 48px; }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .flow { flex-direction: column; }
+    .arrow { transform: rotate(90deg); }
+    .live-row { grid-template-columns: 26px minmax(0, 1fr); }
+    .live-row > :nth-child(n+3) { grid-column: 2; }
+    .step-body { padding: 0 14px 14px; }
+    details.step { scroll-margin-top: 110px; }
+    details.step > summary { grid-template-columns: 32px minmax(0, 1fr); }
+    .badges { grid-column: 2; justify-content: flex-start; }
+    .view-chat { display: flex; flex-direction: column; padding: 12px 16px; }
+    aside { overflow: visible; }
+    .chat { height: 75vh; }
+    .msg { max-width: 92%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Day 12 Agent</h1>
+    <div class="sub" id="sub-chat">FastAPI · Redis · Railway — rê chuột hoặc chạm vào ⓘ để xem giải thích từng mục</div>
+    <div class="sub" id="sub-pipeline" hidden>Nguyễn Thị Hải Mi · 2A202602667 · K4 L3B Day 12</div>
+  </div>
+  <nav class="tabs" aria-label="Menu">
+    <a href="#/chat" id="tab-chat">Chatbot</a>
+    <a href="#/pipeline" id="tab-pipeline">Pipeline</a>
+  </nav>
+  <div class="pills">
+    <span id="pill-health" class="pill" data-help="health" tabindex="0">/health …</span>
+    <span id="pill-ready" class="pill" data-help="ready" tabindex="0">/ready …</span>
+  </div>
+</header>
+
+<main id="view-chat" class="view-chat">
+  <aside>
+    <section class="card">
+      <h2>Kết nối <button class="info" type="button" data-help="card-connect" aria-label="Giải thích mục Kết nối">i</button></h2>
+      <label for="key"><span>API key (header <code>X-API-Key</code>)</span>
+        <button class="info" type="button" data-help="key" aria-label="Giải thích API key">i</button>
+      </label>
+      <div class="key-row">
+        <input id="key" type="password" autocomplete="off" placeholder="Dán khóa vào đây">
+        <button id="toggle-key" type="button" aria-label="Hiện/ẩn khóa">Hiện</button>
+      </div>
+      <label for="user"><span>User ID (header <code>X-User-Id</code>)</span>
+        <button class="info" type="button" data-help="user" aria-label="Giải thích User ID">i</button>
+      </label>
+      <input id="user" type="text" value="demo-user" autocomplete="off">
+      <p class="hint">Khóa chỉ lưu trong tab này, đóng tab là mất. Mỗi User ID có lịch sử, rate limit và ngân sách riêng.</p>
+    </section>
+
+    <section class="card">
+      <h2>Demo nhanh <button class="info" type="button" data-help="card-demo" aria-label="Giải thích mục Demo nhanh">i</button></h2>
+      <div class="tools">
+        <button id="btn-nokey" type="button" data-help="btn-nokey">Gọi /ask không có key → 401</button>
+        <button id="btn-burst" type="button" data-help="btn-burst">Gửi dồn 12 request → 429</button>
+        <button id="btn-probe" type="button" data-help="btn-probe">Gọi lại /health và /ready</button>
+      </div>
+      <div id="codes" class="codes" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <h2>Phiên này <small>· từ lúc mở trang</small>
+        <button class="info" type="button" data-help="card-session" aria-label="Giải thích mục Phiên này">i</button>
+      </h2>
+      <div class="stats">
+        <div class="stat" data-help="stat-req" tabindex="0"><b id="s-req">0</b><span>request</span></div>
+        <div class="stat" data-help="stat-hist" tabindex="0"><b id="s-hist">0</b><span>history_length</span></div>
+        <div class="stat" data-help="stat-tok" tabindex="0"><b id="s-tok">0</b><span>token (in+out)</span></div>
+        <div class="stat" data-help="stat-cost" tabindex="0"><b id="s-cost">$0</b><span>chi phí</span></div>
+      </div>
+      <p class="hint">Tải lại trang → các số này về 0. Lịch sử hội thoại thì vẫn còn trong Redis.</p>
+    </section>
+  </aside>
+
+  <section class="chat">
+    <div id="log" aria-live="polite">
+      <div class="empty" id="empty">
+        <h3>Hỏi agent một câu</h3>
+        <p>Dán API key ở cột bên trái, rồi gõ câu hỏi bên dưới. Lịch sử hội thoại
+        được lưu trong Redis, nên dù request rơi vào instance nào agent vẫn nhớ.</p>
+        <p>Câu trả lời do <b>mock LLM</b> tạo ra (4 câu mẫu, chèn câu hỏi của bạn vào) —
+        không phải AI thật, để lab không cần API key và không tốn tiền.</p>
+      </div>
+    </div>
+    <form class="composer" id="composer">
+      <textarea id="question" placeholder="Ví dụ: Docker là gì?  (Enter để gửi, Shift+Enter xuống dòng)" maxlength="2000" required></textarea>
+      <button class="primary" id="send" type="submit" data-help="send">Gửi</button>
+    </form>
+  </section>
+</main>
+
+<main id="view-pipeline" class="view-pipeline" hidden>
+<div class="pipe">
+
+  <section class="hero">
+    <h1>Pipeline hoàn thành Lab Day 12 — Cloud &amp; Deployment</h1>
+    <p>Đưa một AI agent từ <code>localhost:8000</code> lên một địa chỉ HTTPS công khai: cấu hình theo 12-Factor,
+    đóng gói Docker, bảo vệ bằng API key + rate limit + cost guard, chạy stateless nhiều instance, rồi deploy lên Railway.
+    Mỗi bước dưới đây ghi <b>yêu cầu của đề → cách làm → vì sao đúng → bằng chứng</b>.</p>
+    <div class="links">
+      <a href="https://github.com/haimi612003/K4-L3B-DAY12-NguyenThiHaiMi-2A202602667-CloudServicesAndDeployment" target="_blank" rel="noopener">Repo GitHub ↗</a>
+      <a href="/docs" target="_blank" rel="noopener">API docs (/docs) ↗</a>
+      <a href="#/chat">Thử chatbot →</a>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><b>100/100</b><span>điểm phần bắt buộc (<code>python grade.py</code>)</span></div>
+      <div class="kpi"><b>79/79</b><span>test CP1–CP5 pass</span></div>
+      <div class="kpi"><b>1.82 GB → 297 MB</b><span>image Docker trước / sau</span></div>
+      <div class="kpi"><b>HTTPS</b><span>chạy thật trên Railway, nối Redis</span></div>
+    </div>
+  </section>
+
+  <h2 class="sec">Kiến trúc khi chạy trên cloud</h2>
+  <p class="lead">Một request đi qua những đâu, và mỗi thành phần chịu trách nhiệm gì.</p>
+  <div class="flow">
+    <div class="node"><b>Trình duyệt / curl</b><small>gửi header <code>X-API-Key</code>, <code>X-User-Id</code></small></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node"><b>Railway edge</b><small>HTTPS, domain <code>*.up.railway.app</code>, gán <code>PORT=8080</code></small></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node accent"><b>Container <code>agent</code></b><small>image multi-stage, user <code>appuser</code>, uvicorn nghe <code>$PORT</code></small></div>
+    <div class="arrow" aria-hidden="true">⇄</div>
+    <div class="node"><b>Redis</b><small><code>redis.railway.internal</code> — lịch sử, rate limit, chi phí</small></div>
+  </div>
+  <p class="flow-caption">Secret (<code>AGENT_API_KEY</code>) nằm trong Variables của Railway, không nằm trong repo hay image. Mọi state nằm ở Redis nên container có thể restart hoặc scale mà không mất dữ liệu.</p>
+
+  <h3 class="sub-sec">Hành trình của một request theo thời gian</h3>
+  <p class="lead">Đọc từ trên xuống. Mũi tên liền là request, mũi tên đứt là response; ô xám là xử lý bên trong một thành phần.
+    Nếu một bước kiểm tra không đạt, app trả ngay mã lỗi ghi bên cạnh và dừng ở đó.</p>
+  <p class="seq-hint">← Vuốt ngang trong khung để xem đủ 4 cột →</p>
+  <div class="seq-wrap"><div class="seq" id="seq" role="img"
+    aria-label="Sơ đồ tuần tự: trình duyệt gửi HTTPS tới Railway edge, edge chuyển tới container agent cổng 8080, agent đọc ghi Redis rồi trả JSON về trình duyệt"></div></div>
+
+  <h2 class="sec">Luồng xử lý của <code>POST /ask</code></h2>
+  <p class="lead">Chặn trước, gọi LLM sau — tiền chỉ mất ở bước gọi LLM, nên mọi lớp kiểm tra phải đứng trước nó.</p>
+  <div class="flow">
+    <div class="node gate"><b data-code="401">API key</b><small><code>compare_digest</code></small></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node gate"><b data-code="429">Rate limit</b><small>10 req / 60 s</small></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node gate"><b data-code="402">Cost guard</b><small>10 USD / tháng</small></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node"><b>Đọc lịch sử</b><small>Redis list</small></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node accent"><b>Mock LLM</b><small>câu mẫu, không tốn tiền</small></div>
+    <div class="arrow" aria-hidden="true">→</div>
+    <div class="node"><b>Lưu + ghi</b><small>history ×2, cost, log JSON</small></div>
+  </div>
+
+  <h2 class="sec">Kiểm tra trực tiếp</h2>
+  <p class="lead">Trang tự gọi vào chính service đang chạy và so với kết quả mong đợi. Phần có API key thử ở tab Chatbot.</p>
+  <div class="live" id="live">
+    <div class="live-row" data-check="health"><span class="mark">…</span><span><code>GET /health</code></span><span>Mong đợi <code>200 ok</code></span><span class="res">chưa chạy</span></div>
+    <div class="live-row" data-check="ready"><span class="mark">…</span><span><code>GET /ready</code></span><span>Mong đợi <code>200 ready</code></span><span class="res">chưa chạy</span></div>
+    <div class="live-row" data-check="nokey"><span class="mark">…</span><span><code>POST /ask</code> không có key</span><span>Mong đợi <code>401</code></span><span class="res">chưa chạy</span></div>
+    <div class="live-row" data-check="badkey"><span class="mark">…</span><span><code>POST /ask</code> key sai</span><span>Mong đợi <code>401</code></span><span class="res">chưa chạy</span></div>
+  </div>
+  <p class="note"><button type="button" id="btn-live">Chạy lại kiểm tra</button></p>
+
+  <h2 class="sec">Các bước đã làm</h2>
+  <p class="lead">Bấm vào từng bước để xem chi tiết. <button type="button" id="btn-expand">Mở tất cả</button></p>
+  <nav class="jump" id="jump" aria-label="Đi tới bước">
+    <button type="button" data-target="st-0">0 · Setup</button>
+    <button type="button" data-target="st-1">1 · Config</button>
+    <button type="button" data-target="st-2">2 · Docker</button>
+    <button type="button" data-target="st-3">3 · Security</button>
+    <button type="button" data-target="st-4">4 · Scaling</button>
+    <button type="button" data-target="st-5">5 · Deploy</button>
+    <button type="button" data-target="st-6">6 · Exercises</button>
+    <button type="button" data-target="st-7">7 · CI/CD</button>
+    <button type="button" data-target="st-8">8 · UI demo</button>
+  </nav>
+
+  <!-- ── Bước 0 ── -->
+  <details class="step" id="st-0">
+    <summary>
+      <span class="num">0</span>
+      <span class="step-title"><b>Chuẩn bị môi trường (CP0)</b><span>Repo đúng tên, venv, .env, Redis</span></span>
+      <span class="badges"><span class="badge ok">xong</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đã làm</h4>
+      <ul>
+        <li>Clone repo đặt tên theo mẫu <code>K4-L3B-DAY12-NguyenThiHaiMi-2A202602667-CloudServicesAndDeployment</code>.</li>
+        <li>Tạo <code>.venv</code>, <code>pip install -r requirements.txt</code>.</li>
+        <li>Tạo <code>.env</code> từ <code>.env.example</code>, sinh <code>AGENT_API_KEY</code> ngẫu nhiên bằng <code>secrets.token_urlsafe(32)</code>.</li>
+        <li><code>docker compose up -d redis</code>.</li>
+      </ul>
+      <h4>Vì sao đúng</h4>
+      <ul>
+        <li><code>.env</code> nằm trong <code>.gitignore</code> (đã kiểm tra bằng <code>git check-ignore .env</code>) → secret không bao giờ lên repo công khai.</li>
+        <li>Chạy <code>pytest</code> ngay từ đầu: test chạy được, rớt vì <code>NotImplementedError</code> — đúng kỳ vọng của CP0 (môi trường ổn, chưa có code).</li>
+      </ul>
+      <h4>Sự cố &amp; cách xử lý</h4>
+      <div class="issue"><b>Cổng 6379 và 8000 đã bị chiếm</b> bởi container của một project khác trên máy.
+        Cho cổng host trong compose cấu hình được (<code>${REDIS_HOST_PORT:-6379}</code>, <code>${AGENT_HOST_PORT:-8000}</code> — mặc định vẫn như đề),
+        sau đó tắt project kia để chạy đúng cổng mặc định.</div>
+    </div>
+  </details>
+
+  <!-- ── Bước 1 ── -->
+  <details class="step" id="st-1">
+    <summary>
+      <span class="num">1</span>
+      <span class="step-title"><b>12-Factor Config, Health &amp; Logging (CP1)</b><span>Cấu hình từ biến môi trường, log JSON, /health</span></span>
+      <span class="badges"><span class="badge ok">13/13 test</span><span class="badge neutral">15/15 đ</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đối chiếu yêu cầu</h4>
+      <div class="table-wrap"><table class="req">
+        <tr><th>Yêu cầu của đề</th><th>Cách làm</th><th>Kiểm chứng</th></tr>
+        <tr><td>Settings đủ 6 trường, đọc từ env</td><td><code>pydantic-settings</code> tự ánh xạ <code>agent_api_key</code> ← <code>AGENT_API_KEY</code></td><td>test đổi env → config đổi theo</td></tr>
+        <tr><td>Secret không có mặc định (fail fast)</td><td><code>agent_api_key: str</code> không gán giá trị</td><td>thiếu biến → <code>ValidationError</code> ngay khi khởi động</td></tr>
+        <tr><td>Log JSON một dòng</td><td><code>json.dumps(..., ensure_ascii=False)</code>, không <code>indent</code></td><td>test đọc stdout = đúng 1 dòng JSON</td></tr>
+        <tr><td><code>/health</code> không phụ thuộc dependency</td><td>hàm không nhận tham số, không gọi Redis; đang tắt → 503</td><td>test kiểm tra chữ ký hàm rỗng</td></tr>
+      </table></div>
+      <h4>Code chính</h4>
+<pre class="snip">class Settings(BaseSettings):
+    port: int = 8000
+    agent_api_key: str  # bắt buộc — thiếu biến môi trường là app chết ngay
+    redis_url: str = "redis://localhost:6379/0"
+    rate_limit_per_minute: int = 10
+    monthly_budget_usd: float = 10.0
+    log_level: str = "INFO"</pre>
+      <h4>Vì sao đúng</h4>
+      <ul>
+        <li>Có mặc định kiểu <code>"changeme"</code> thì quên set secret trên cloud app vẫn chạy với khóa ai cũng đoán được; không mặc định → lỗi lộ ra ngay lúc deploy.</li>
+        <li>Cloud gom log theo dòng; một dòng = một JSON thì lọc, đếm, cảnh báo được (ví dụ tổng <code>cost_usd</code> theo <code>user_id</code>).</li>
+        <li><code>/health</code> gọi Redis thì Redis chập chờn sẽ khiến platform restart cả cụm container — sự cố nhỏ thành sự cố lớn.</li>
+      </ul>
+      <h4>Bằng chứng</h4>
+<pre class="snip">{"event": "ask_completed", "level": "info", "timestamp": "2026-09-29T02:35:57.612828+00:00", "user_id": "sv01", "tokens_in": 3, "tokens_out": 37, "cost_usd": 2.265e-05}</pre>
+    </div>
+  </details>
+
+  <!-- ── Bước 2 ── -->
+  <details class="step" id="st-2">
+    <summary>
+      <span class="num">2</span>
+      <span class="step-title"><b>Docker: multi-stage &amp; bảo mật image (CP2)</b><span>Dockerfile, .dockerignore, docker-compose</span></span>
+      <span class="badges"><span class="badge ok">16/16 test</span><span class="badge neutral">15/15 đ</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đối chiếu yêu cầu</h4>
+      <div class="table-wrap"><table class="req">
+        <tr><th>Yêu cầu của đề</th><th>Cách làm</th><th>Kiểm chứng</th></tr>
+        <tr><td>Multi-stage, base image gọn</td><td><code>builder</code> và <code>runtime</code> đều <code>python:3.11-slim</code>; runtime chỉ <code>COPY --from=builder /install</code></td><td>image 297 MB (&lt; 500 MB)</td></tr>
+        <tr><td>Cài dependency trước khi copy code</td><td><code>COPY requirements.txt</code> → <code>pip install</code> → <code>COPY app</code></td><td>sửa code: pip install dùng cache</td></tr>
+        <tr><td>Không chạy root</td><td><code>useradd --uid 10001 appuser</code> + <code>USER appuser</code></td><td><code>id</code> trong container → <code>uid=10001(appuser)</code></td></tr>
+        <tr><td>HEALTHCHECK + đọc <code>$PORT</code></td><td>HEALTHCHECK gọi <code>/health</code>; <code>--port ${PORT:-8000}</code>, bind <code>0.0.0.0</code></td><td>container <code>healthy</code>; Railway gán 8080 vẫn chạy</td></tr>
+        <tr><td><code>.dockerignore</code> an toàn</td><td>loại <code>.env</code>, <code>.git</code>, <code>.venv</code>, <code>__pycache__</code>, tests…; giữ <code>app</code>, <code>utils</code>, <code>requirements.txt</code></td><td>không có <code>.env</code> trong image</td></tr>
+        <tr><td>Compose có <code>agent</code> + <code>redis</code></td><td><code>REDIS_URL: redis://redis:6379/0</code>, <code>AGENT_API_KEY: ${AGENT_API_KEY}</code>, <code>depends_on</code>, healthcheck</td><td><code>docker compose up</code> → 2 service healthy</td></tr>
+      </table></div>
+      <h4>Code chính (rút gọn)</h4>
+<pre class="snip">FROM python:3.11-slim AS builder
+COPY requirements.txt .
+RUN pip install --prefix=/install -r requirements.txt
+
+FROM python:3.11-slim AS runtime
+COPY --from=builder /install /usr/local
+RUN useradd --create-home --uid 10001 appuser
+COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser utils ./utils
+USER appuser
+HEALTHCHECK ... CMD python -c "...urlopen('http://127.0.0.1:$PORT/health')..."
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]</pre>
+      <h4>Bằng chứng — đo thật trước và sau</h4>
+      <div class="evidence">
+        <div class="ev"><b>1.82 GB → 297 MB</b><span>image 1 stage gốc → multi-stage</span></div>
+        <div class="ev"><b>root → appuser</b><span>user chạy trong container</span></div>
+        <div class="ev"><b>23.9 s → cache</b><span>sửa 1 ký tự code: bản gốc cài lại pip, bản mới dùng cache</span></div>
+        <div class="ev"><b>0.47 s, exit 0</b><span><code>docker stop</code> — uvicorn là PID 1 nhờ <code>exec</code>, nhận SIGTERM trực tiếp</span></div>
+      </div>
+      <h4>Phát hiện khi đo</h4>
+      <div class="issue"><b>Image gốc chứa luôn file <code>.env</code> (có API key).</b> Dockerfile gốc dùng <code>COPY . .</code> trong khi
+        <code>.dockerignore</code> chỉ có <code>.git</code> — ai kéo được image là có khóa. Bản mới loại <code>.env</code> và chỉ copy <code>app/</code>, <code>utils/</code>;
+        image cũ đã được xóa sau khi đo.</div>
+    </div>
+  </details>
+
+  <!-- ── Bước 3 ── -->
+  <details class="step" id="st-3">
+    <summary>
+      <span class="num">3</span>
+      <span class="step-title"><b>API Security: auth, rate limit, cost guard (CP3)</b><span>401 · 429 · 402, chặn trước khi gọi LLM</span></span>
+      <span class="badges"><span class="badge ok">22/22 test</span><span class="badge neutral">20/20 đ</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đối chiếu yêu cầu</h4>
+      <div class="table-wrap"><table class="req">
+        <tr><th>Yêu cầu của đề</th><th>Cách làm</th><th>Kiểm chứng</th></tr>
+        <tr><td>So sánh key constant-time</td><td><code>secrets.compare_digest</code>, không dùng <code>==</code></td><td>test phân tích AST phải có lời gọi <code>compare_digest</code></td></tr>
+        <tr><td>Sliding window rate limit</td><td>Redis sorted set, score = timestamp: xóa cũ → đếm → vượt thì 429 → chưa vượt mới ghi</td><td>15 lần gọi → <code>200×10</code>, <code>429×5</code></td></tr>
+        <tr><td>Member trong ZSET duy nhất</td><td><code>f"{now}:{uuid4().hex}"</code></td><td>2 request cùng timestamp vẫn được đếm đủ</td></tr>
+        <tr><td>Cost guard theo user/tháng</td><td>key <code>cost:&lt;user&gt;:&lt;YYYY-MM&gt;</code>, <code>incrbyfloat</code>, vượt → 402</td><td>đặt chi tiêu 999 USD → <code>/ask</code> trả 402</td></tr>
+        <tr><td>Kiểm tra trước khi gọi LLM</td><td>thứ tự trong <code>/ask</code>: key → limiter → guard → LLM</td><td>request không key không tiêu quota (test 401 trước 429)</td></tr>
+      </table></div>
+      <h4>Code chính (rút gọn)</h4>
+<pre class="snip"># app/rate_limiter.py — kiểm tra trước, ghi nhận sau
+self.client.zremrangebyscore(key, 0, now - WINDOW_SECONDS)    # bỏ request ngoài cửa sổ
+if self.client.zcard(key) &gt;= self.limit:
+    raise HTTPException(status_code=429, detail="rate limit exceeded")
+self.client.zadd(key, {f"{now}:{uuid.uuid4().hex}": now})      # member duy nhất
+self.client.expire(key, WINDOW_SECONDS)
+
+# app/main.py — /ask
+limiter.check(user_id)          # 429
+guard.check(user_id)            # 402
+history = store.get_history(user_id)
+result = ask_llm(payload.question, history)</pre>
+      <h4>Vì sao đúng</h4>
+      <ul>
+        <li><code>==</code> dừng ở ký tự khác đầu tiên → thời gian phản hồi lộ thông tin, đo đủ lần là dò được khóa.</li>
+        <li>Đếm theo phút đồng hồ có kẽ hở: 10 request lúc 10:00:59 + 10 request lúc 10:01:00 = 20 request trong 2 giây. Cửa sổ trượt 60 giây không có kẽ hở này.</li>
+        <li>Ghi trước rồi mới đếm sẽ chặn nhầm ngay ở request thứ 10.</li>
+        <li>Rate limit chặn <i>tần suất</i>, cost guard chặn <i>tổng tiền</i> — 10 request/phút nhưng mỗi request rất dài vẫn có thể đốt hết ngân sách.</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ── Bước 4 ── -->
+  <details class="step" id="st-4">
+    <summary>
+      <span class="num">4</span>
+      <span class="step-title"><b>Scaling &amp; Reliability (CP4)</b><span>Stateless, /ready, graceful shutdown</span></span>
+      <span class="badges"><span class="badge ok">19/19 test</span><span class="badge neutral">20/20 đ</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đối chiếu yêu cầu</h4>
+      <div class="table-wrap"><table class="req">
+        <tr><th>Yêu cầu của đề</th><th>Cách làm</th><th>Kiểm chứng</th></tr>
+        <tr><td>Lịch sử trong Redis, có giới hạn và TTL</td><td><code>rpush</code> + <code>ltrim(-20, -1)</code> (20 tin mới nhất) + <code>expire</code> 7 ngày</td><td>30 tin → còn 20, giữ tin mới nhất</td></tr>
+        <tr><td>Không giữ state trong process</td><td>không có dict/list toàn cục; mọi thứ qua Redis</td><td>3 container dùng chung lịch sử</td></tr>
+        <tr><td><code>/ready</code> kiểm tra Redis</td><td><code>ping()</code> nuốt mọi exception → <code>False</code> → 503</td><td>tắt Redis → <code>/ready</code> 503, <code>/health</code> vẫn 200</td></tr>
+        <tr><td>Xử lý SIGTERM đúng</td><td>nhớ handler cũ, bật cờ rồi gọi lại handler của uvicorn</td><td><code>docker stop</code> 0.47 s, exit 0</td></tr>
+      </table></div>
+      <h4>Code chính</h4>
+<pre class="snip">def install(self):
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        self._previous[sig] = signal.getsignal(sig)   # nhớ handler của uvicorn
+        signal.signal(sig, self.request_shutdown)     # rồi mới ghi đè
+
+def request_shutdown(self, signum=None, frame=None):
+    self.shutting_down = True                         # /health, /ready → 503
+    previous = self._previous.get(signum)
+    if callable(previous):
+        previous(signum, frame)                       # trả lại cho uvicorn dừng server</pre>
+      <h4>Bằng chứng — thí nghiệm thật với Docker</h4>
+      <div class="evidence">
+        <div class="ev"><b>0 → 2 → 4 → 6 → 8 → 10</b><span><code>history_length</code> khi scale 3 container sau nginx; mỗi container nhận 2 request</span></div>
+        <div class="ev"><b>200 / 503</b><span>tắt Redis ~35 s: <code>/health</code> 200, <code>/ready</code> 503, không container nào bị restart</span></div>
+        <div class="ev"><b>tự hồi phục</b><span>bật Redis lại → cả 3 <code>/ready</code> về 200</span></div>
+        <div class="ev"><b>exit 0</b><span>SIGTERM → log <code>service_stopped</code> → thoát sạch</span></div>
+      </div>
+      <h4>Vì sao đúng</h4>
+      <ul>
+        <li>Nhiều instance sau load balancer: câu 1 vào A, câu 2 vào B. Lịch sử trong RAM của A thì B không biết → agent "mất trí nhớ". Nếu dùng dict, <code>history_length</code> sẽ là 0, 0, 0, 2, 2, 2 thay vì tăng đều.</li>
+        <li>Mỗi tín hiệu chỉ có một handler: ghi đè mà không gọi lại handler của uvicorn thì server không bao giờ tự dừng và bị SIGKILL.</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ── Bước 5 ── -->
+  <details class="step" id="st-5">
+    <summary>
+      <span class="num">5</span>
+      <span class="step-title"><b>Deploy lên Railway (CP5)</b><span>URL HTTPS công khai, Redis trên cloud</span></span>
+      <span class="badges"><span class="badge ok">9/9 test</span><span class="badge neutral">15/15 đ</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Các lệnh đã chạy</h4>
+<pre class="snip">railway login                                   # học viên tự đăng nhập qua trình duyệt
+railway init --name day12-agent
+railway add --database redis
+railway add --service agent \
+  --variables "AGENT_API_KEY=&lt;khóa riêng cho cloud&gt;" \
+  --variables 'REDIS_URL=${{Redis.REDIS_URL}}' \
+  --variables RATE_LIMIT_PER_MINUTE=10 \
+  --variables MONTHLY_BUDGET_USD=10.0 \
+  --variables LOG_LEVEL=INFO
+railway up --ci --service agent                 # build từ Dockerfile
+railway domain --service agent                  # sinh URL công khai</pre>
+      <h4>Đối chiếu yêu cầu</h4>
+      <div class="table-wrap"><table class="req">
+        <tr><th>Yêu cầu của đề</th><th>Cách làm</th><th>Kiểm chứng</th></tr>
+        <tr><td>URL HTTPS công khai</td><td><code>railway domain</code></td><td><code>https://agent-production-436a.up.railway.app</code></td></tr>
+        <tr><td>Kết nối Redis trên cloud</td><td>biến tham chiếu <code>${{Redis.REDIS_URL}}</code> → mạng nội bộ <code>redis.railway.internal</code></td><td><code>/ready</code> → 200 <code>redis: true</code></td></tr>
+        <tr><td>App đọc <code>$PORT</code> của platform</td><td><code>--port $PORT</code></td><td>log: <code>Uvicorn running on http://0.0.0.0:8080</code></td></tr>
+        <tr><td>Secret không nằm trong repo</td><td>khóa cloud khác khóa local, chỉ set trên Railway; <code>DEPLOYMENT.md</code> chỉ ghi tên biến</td><td>test quét <code>DEPLOYMENT.md</code> không thấy giá trị khóa</td></tr>
+      </table></div>
+      <h4>Bằng chứng — kết quả gọi thật</h4>
+<pre class="snip">GET  /health            → HTTP/2 200 {"status":"ok","service":"day12-agent","version":"1.0.0"}
+GET  /ready             → HTTP/2 200 {"status":"ready","redis":true}
+POST /ask (không key)   → HTTP/2 401 {"detail":"invalid or missing API key"}
+POST /ask (có key)      → HTTP/2 200 {"answer":"...","history_length":0,"cost_usd":2.145e-05,...}
+15 lần /ask             → 200 ×9, 429 ×6   (cộng request trước đó = đúng 10 / 60 giây)</pre>
+      <h4>Sự cố &amp; cách xử lý</h4>
+      <div class="issue"><b><code>no such file or directory: npx --yes @railway/cli</code></b> khi gọi CLI qua biến shell
+        (<code>R="npx --yes @railway/cli"; $R ...</code>). zsh không tách từ khi mở rộng biến nên coi cả chuỗi là tên một file.
+        Sửa bằng cách cài CLI global (<code>npm i -g @railway/cli</code>) và gọi thẳng <code>railway</code>.</div>
+    </div>
+  </details>
+
+  <!-- ── Bước 6 ── -->
+  <details class="step" id="st-6">
+    <summary>
+      <span class="num">6</span>
+      <span class="step-title"><b>Phiếu phản ánh (exercises.md)</b><span>10 câu, dựa trên số liệu đo thật</span></span>
+      <span class="badges"><span class="badge ok">10/10 câu</span><span class="badge neutral">15/15 đ</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đã làm</h4>
+      <ul>
+        <li>Mỗi câu trả lời dùng số liệu quan sát được ở các bước trên: dòng log JSON thật, 1.82 GB so với 297 MB, 23.9 s vỡ cache, <code>uid=10001</code>, <code>200×10 / 429×5</code>, Redis chết → <code>/health</code> 200 + <code>/ready</code> 503, <code>history_length</code> 0 → 10 khi scale.</li>
+        <li>Câu 10 (lỗi khi deploy) chỉ viết sau khi đã deploy thật, dùng đúng lỗi đã gặp.</li>
+      </ul>
+      <div class="issue"><b>Lưu ý về <code>grade.py</code>:</b> grader đếm mọi chuỗi <code>&gt; *Câu trả lời của bạn*</code> trong file, kể cả dòng hướng dẫn ở đầu,
+        nên trả lời đủ 10 câu vẫn chỉ được 9/10. Dòng hướng dẫn đã được diễn đạt lại (giữ nguyên ý) để không bị đếm nhầm.</div>
+    </div>
+  </details>
+
+  <!-- ── Bước 7 ── -->
+  <details class="step" id="st-7">
+    <summary>
+      <span class="num pending">7</span>
+      <span class="step-title"><b>Bonus — CI/CD với GitHub Actions</b><span>test → build → deploy chỉ khi xanh</span></span>
+      <span class="badges"><span class="badge ok">12/13 test</span><span class="badge wait">chờ push</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đối chiếu yêu cầu</h4>
+      <div class="table-wrap"><table class="req">
+        <tr><th>Yêu cầu của đề</th><th>Cách làm trong <code>.github/workflows/ci.yml</code></th><th>Kiểm chứng</th></tr>
+        <tr><td>Chạy khi push và pull request</td><td><code>on: push / pull_request</code> vào <code>main</code></td><td>test trigger pass</td></tr>
+        <tr><td>Job test trên máy sạch</td><td>setup-python 3.11 → cài requirements → pytest, bỏ <code>test_cp5</code> (cần bản deploy sống); <code>AGENT_API_KEY=ci-dummy</code>, <code>REDIS_URL=fake://</code></td><td>chạy đúng lệnh này ở máy: 68 passed</td></tr>
+        <tr><td>Job build image</td><td><code>docker build</code> + chạy thử container, <code>curl /health</code></td><td>test build pass</td></tr>
+        <tr><td>Deploy chỉ khi xanh, chỉ từ main</td><td><code>needs: [test, build]</code> + <code>if: github.ref == 'refs/heads/main' &amp;&amp; github.event_name == 'push'</code></td><td>test needs/if pass</td></tr>
+        <tr><td>Secret không nằm trong YAML</td><td><code>${{ secrets.RAILWAY_TOKEN }}</code>, action ghim <code>@v4</code>/<code>@v5</code></td><td>test quét token pass</td></tr>
+      </table></div>
+      <h4>Còn thiếu</h4>
+      <div class="issue"><b>Badge chưa báo <code>passing</code>.</b> Workflow chỉ chạy sau khi code được push lên GitHub và đã thêm
+        <code>RAILWAY_TOKEN</code> (Secrets), <code>RAILWAY_SERVICE</code>, <code>PUBLIC_URL</code> (Variables).</div>
+    </div>
+  </details>
+
+  <!-- ── Bước 8 ── -->
+  <details class="step" id="st-8">
+    <summary>
+      <span class="num extra">8</span>
+      <span class="step-title"><b>Mở rộng — giao diện demo (ngoài đề)</b><span>Trang này: Chatbot + Pipeline</span></span>
+      <span class="badges"><span class="badge neutral">không chấm điểm</span></span>
+    </summary>
+    <div class="step-body">
+      <h4>Đã làm</h4>
+      <ul>
+        <li>Thêm route <code>GET /</code> trong <code>app/main.py</code> trả về một trang tĩnh <code>app/static/index.html</code> (HTML/CSS/JS thuần, không thư viện ngoài).</li>
+        <li>Tab <b>Chatbot</b>: nhập API key + User ID, hỏi đáp, nút demo 401 / 429, badge <code>/health</code> <code>/ready</code>, giải thích từng con số khi rê chuột.</li>
+        <li>Tab <b>Pipeline</b>: tài liệu này, kèm phần kiểm tra trực tiếp.</li>
+      </ul>
+      <h4>Vì sao không phá các yêu cầu trước</h4>
+      <ul>
+        <li>Trang <b>không nhúng API key</b>: người dùng phải tự nhập, nên <code>/ask</code> vẫn được bảo vệ như CP3.</li>
+        <li>Nội dung từ server được gắn bằng <code>textContent</code>, không <code>innerHTML</code> → không chèn được mã độc qua câu trả lời.</li>
+        <li>Sau khi thêm UI: CP1–CP4 vẫn 70 passed, deploy lại Railway và <code>test_cp5.py</code> vẫn 9 passed.</li>
+      </ul>
+    </div>
+  </details>
+
+  <p class="note">Chi tiết từng lệnh và kết quả nằm trong <code>recap.md</code>, <code>DEPLOYMENT.md</code> và <code>exercises.md</code> của repo.</p>
+</div>
+</main>
+
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const log = $("log");
+
+  // Giữ đồng bộ với utils/mock_llm.py và cấu hình mặc định của server
+  const PRICE_IN_PER_1K = 0.00015;
+  const PRICE_OUT_PER_1K = 0.0006;
+  const HISTORY_MAX = 20;
+
+  const stats = { ok: 0, errors: {}, tokIn: 0, tokOut: 0, cost: 0, lastHist: null };
+  const probes = {};
+
+  const ERRORS = {
+    401: "401 Unauthorized — thiếu hoặc sai API key.",
+    402: "402 Payment Required — user này đã tiêu hết ngân sách tháng.",
+    422: "422 — câu hỏi không hợp lệ (rỗng hoặc quá 2000 ký tự).",
+    429: "429 Too Many Requests — vượt rate limit 10 request/60 giây. Chờ một lúc rồi thử lại.",
+    503: "503 — service chưa sẵn sàng hoặc đang tắt dần.",
+  };
+
+  const usd = (n) => "$" + (n === 0 ? "0" : n.toFixed(8).replace(/0+$/, "").replace(/\.$/, ""));
+  const errorSummary = () => {
+    const parts = Object.entries(stats.errors).map(([c, n]) => `${c}×${n}`);
+    return parts.length ? parts.join(", ") : "không có";
+  };
+  const timeAgo = (t) => (t ? `${Math.round((Date.now() - t) / 1000)} giây trước` : "chưa gọi");
+
+  // ── Nội dung giải thích cho từng mục ──────────────────────────
+  // Mỗi mục: title, text (đoạn giải thích), calc (cách tính), now (số liệu hiện tại)
+  const HELP = {
+    health: () => ({
+      title: "/health — liveness probe",
+      text: [
+        "Trả lời câu hỏi: process còn sống không? Platform dùng nó để quyết định có cần restart container.",
+        "Cố ý KHÔNG kiểm tra Redis: Redis chết một lúc thì không được kéo cả cụm container restart theo.",
+      ],
+      calc: "200 ok → sống bình thường\n503 shutting_down → đang tắt dần (vừa nhận SIGTERM)",
+      now: probes.health ? `${probes.health.text} · kiểm tra ${timeAgo(probes.health.at)} (tự gọi lại mỗi 15 giây)` : null,
+    }),
+    ready: () => ({
+      title: "/ready — readiness probe",
+      text: [
+        "Trả lời câu hỏi: đã nhận traffic được chưa? Endpoint này có ping Redis.",
+        "Nếu 503, load balancer ngừng gửi request vào instance này nhưng KHÔNG restart nó — khi Redis sống lại thì tự về 200.",
+      ],
+      calc: "200 ready → Redis trả lời ping\n503 not ready → không nối được Redis\n503 shutting_down → đang tắt dần",
+      now: probes.ready ? `${probes.ready.text} · kiểm tra ${timeAgo(probes.ready.at)}` : null,
+    }),
+    "card-connect": () => ({
+      title: "Kết nối",
+      text: [
+        "Hai giá trị được gửi kèm mỗi request tới /ask dưới dạng HTTP header.",
+        "API key trả lời câu hỏi \"bạn có quyền gọi không?\", User ID trả lời \"bạn là ai?\" — dùng để tách lịch sử, rate limit và ngân sách theo từng người.",
+      ],
+    }),
+    key: () => ({
+      title: "API key — header X-API-Key",
+      text: [
+        "Server so sánh khóa này với biến môi trường AGENT_API_KEY bằng secrets.compare_digest (so sánh thời gian cố định, chống dò khóa theo thời gian phản hồi).",
+        "Thiếu hoặc sai → 401, request dừng ngay, không chạm tới LLM nên không tốn tiền và không bị tính vào rate limit.",
+        "Trang này không chứa sẵn khóa nào: ai mở trang cũng phải tự nhập.",
+      ],
+      now: $("key").value.trim() ? `Đã nhập khóa dài ${$("key").value.trim().length} ký tự` : "Chưa nhập khóa → mọi câu hỏi sẽ bị 401",
+    }),
+    user: () => {
+      const u = $("user").value.trim() || "anonymous";
+      return {
+        title: "User ID — header X-User-Id",
+        text: [
+          "Không phải mật khẩu, chỉ là nhãn định danh. Để trống thì server coi là \"anonymous\".",
+          "Mỗi User ID có 3 key riêng trong Redis. Đổi sang tên mới = bắt đầu lại từ đầu (history 0, quota rate limit mới).",
+        ],
+        calc: `history:${u}          lịch sử hội thoại (≤ ${HISTORY_MAX} tin, hết hạn sau 7 ngày)\nratelimit:${u}        thời điểm các request trong 60 giây gần nhất\ncost:${u}:<YYYY-MM>   tổng chi phí trong tháng`,
+      };
+    },
+    "card-demo": () => ({
+      title: "Demo nhanh",
+      text: [
+        "Ba nút để minh họa các lớp bảo vệ của service mà không phải gõ tay nhiều lần.",
+        "Rê chuột vào từng nút để xem nó làm gì. Kết quả hiện trong khung chat.",
+      ],
+    }),
+    "btn-nokey": () => ({
+      title: "Gọi /ask không có key",
+      text: [
+        "Gửi một câu hỏi nhưng cố ý bỏ header X-API-Key.",
+        "Kết quả mong đợi: 401 Unauthorized — chứng minh URL công khai nhưng không phải ai cũng gọi được.",
+      ],
+    }),
+    "btn-burst": () => ({
+      title: "Gửi dồn 12 request",
+      text: [
+        "Gửi liên tiếp 12 câu hỏi với API key và User ID hiện tại.",
+        "Rate limit là 10 request trong 60 giây gần nhất (sliding window) cho mỗi User ID, nên các request vượt hạn mức nhận 429.",
+        "Các câu hỏi bạn gửi trong 60 giây trước đó cũng bị tính → 429 có thể xuất hiện sớm hơn. Muốn làm lại ngay: đổi User ID.",
+      ],
+      calc: "số 200 = 10 − (số request của User ID này trong 60 giây trước)\nsố 429 = 12 − số 200",
+    }),
+    "btn-probe": () => ({
+      title: "Gọi lại /health và /ready",
+      text: ["Làm mới hai badge ở góc trên bên phải ngay lập tức (bình thường trang tự gọi mỗi 15 giây)."],
+    }),
+    code: (el) => {
+      const c = el.dataset.code;
+      const meaning = {
+        200: "Thành công — request nằm trong hạn mức, đã được trả lời.",
+        429: "Too Many Requests — vượt rate limit, request bị chặn TRƯỚC khi gọi LLM nên không tốn tiền.",
+        401: "Unauthorized — thiếu hoặc sai API key.",
+        402: "Payment Required — hết ngân sách tháng.",
+      }[c] || "Lỗi mạng hoặc lỗi không xác định.";
+      return { title: `Mã ${c}`, text: [meaning] };
+    },
+    "card-session": () => ({
+      title: "Phiên này — từ lúc mở trang",
+      text: [
+        "Thống kê do trình duyệt tự cộng kể từ lần tải trang gần nhất. Tải lại trang hoặc đóng tab → về 0.",
+        "Chỉ tính các câu hỏi gửi từ khung chat và trả về 200. Request lỗi (401, 429…) và các nút Demo nhanh không được cộng vào.",
+        "Khác với lịch sử hội thoại: lịch sử nằm trong Redis trên server nên KHÔNG mất khi tải lại trang.",
+      ],
+    }),
+    "stat-req": () => ({
+      title: "request",
+      text: ["Số câu hỏi đã được trả lời thành công (HTTP 200) từ khung chat, kể từ lúc mở trang."],
+      calc: "+1 mỗi lần /ask trả về 200\nlỗi 401/402/422/429 không được cộng",
+      now: `Thành công: ${stats.ok} · lỗi: ${errorSummary()}`,
+    }),
+    "stat-hist": () => {
+      const h = stats.lastHist;
+      return {
+        title: "history_length",
+        text: [
+          "Số tin nhắn đã có trong Redis cho User ID này NGAY TRƯỚC câu hỏi gần nhất. Lấy từ câu trả lời mới nhất, không cộng dồn.",
+          `Mỗi câu hỏi thêm 2 tin (câu hỏi + câu trả lời). Server chỉ giữ ${HISTORY_MAX} tin mới nhất để prompt không dài vô hạn, nên con số dừng ở ${HISTORY_MAX}.`,
+          "Nếu ngay câu đầu tiên đã khác 0: User ID này từng được dùng trước đó (lịch sử còn trong Redis 7 ngày).",
+        ],
+        calc: `lần sau = min(lần này + 2, ${HISTORY_MAX})`,
+        now: h === null ? "Chưa có câu trả lời nào" : `Câu gần nhất thấy ${h} tin → sau câu đó Redis giữ ${Math.min(h + 2, HISTORY_MAX)} tin`,
+      };
+    },
+    "stat-tok": () => ({
+      title: "token (in + out)",
+      text: [
+        "Tổng số token của mọi câu hỏi thành công kể từ lúc mở trang.",
+        "Mock LLM ước lượng thô ~4 ký tự = 1 token. Token vào gồm cả TOÀN BỘ lịch sử gửi kèm, nên lịch sử càng dài thì token vào càng lớn.",
+      ],
+      calc: "in  = (độ dài câu hỏi + độ dài toàn bộ lịch sử) ÷ 4\nout = độ dài câu trả lời ÷ 4\nô này = Σ in + Σ out",
+      now: `${stats.tokIn} + ${stats.tokOut} = ${stats.tokIn + stats.tokOut}`,
+    }),
+    "stat-cost": () => ({
+      title: "chi phí (giả lập)",
+      text: [
+        "Tổng chi phí của các câu hỏi thành công kể từ lúc mở trang, tính theo bảng giá giả lập giống gpt-4o-mini. Ô hiển thị làm tròn 6 chữ số thập phân.",
+        "Server cũng cộng dồn chi phí vào Redis theo User ID và tháng; vượt ngân sách (mặc định 10 USD/tháng) → 402.",
+      ],
+      calc: `mỗi câu = in/1000 × ${PRICE_IN_PER_1K} + out/1000 × ${PRICE_OUT_PER_1K}\nô này = Σ chi phí các câu`,
+      now: `${stats.tokIn}/1000 × ${PRICE_IN_PER_1K} + ${stats.tokOut}/1000 × ${PRICE_OUT_PER_1K} = ${usd(stats.cost)}`,
+    }),
+    "msg-hist": (el) => {
+      const h = Number(el.dataset.hist);
+      return {
+        title: `history ${h} — của riêng câu này`,
+        text: [
+          "Số tin nhắn đã có trong Redis trước khi gửi câu này. Toàn bộ số tin này được gửi kèm làm ngữ cảnh cho LLM.",
+        ],
+        now: `Trước câu này: ${h} tin → sau câu này: ${Math.min(h + 2, HISTORY_MAX)} tin (tối đa ${HISTORY_MAX})`,
+      };
+    },
+    "msg-tok": (el) => ({
+      title: "tokens in + out — của riêng câu này",
+      text: ["Khác ô \"token\" bên trái: đây là số của MỘT câu, ô bên trái là tổng mọi câu từ lúc mở trang."],
+      calc: "in  = (câu hỏi + toàn bộ lịch sử) ÷ 4 ký tự\nout = câu trả lời ÷ 4 ký tự",
+      now: `in ${el.dataset.in} + out ${el.dataset.out} = ${Number(el.dataset.in) + Number(el.dataset.out)} token`,
+    }),
+    "msg-cost": (el) => {
+      const tin = Number(el.dataset.in), tout = Number(el.dataset.out);
+      return {
+        title: "chi phí — của riêng câu này",
+        text: ["Server trả về số này và cộng nó vào ngân sách tháng của User ID trong Redis."],
+        calc: `in/1000 × ${PRICE_IN_PER_1K} + out/1000 × ${PRICE_OUT_PER_1K}`,
+        now: `${tin}/1000 × ${PRICE_IN_PER_1K} + ${tout}/1000 × ${PRICE_OUT_PER_1K}\n= ${usd(tin / 1000 * PRICE_IN_PER_1K)} + ${usd(tout / 1000 * PRICE_OUT_PER_1K)}\n= ${usd(Number(el.dataset.cost))}`,
+      };
+    },
+    "msg-ms": (el) => ({
+      title: "Độ trễ",
+      text: [
+        "Thời gian từ lúc trình duyệt gửi request đến lúc nhận xong câu trả lời, do trình duyệt tự đo.",
+        "Phần lớn là thời gian mạng tới server. Lần đầu sau một lúc không dùng có thể chậm hơn vì free tier \"ngủ đông\".",
+      ],
+      now: `${el.dataset.ms} ms`,
+    }),
+    "msg-mock": () => ({
+      title: "Câu trả lời từ mock LLM",
+      text: [
+        "Không phải AI thật. utils/mock_llm.py có 4 câu mẫu về DevOps; server băm câu hỏi (SHA-256) để chọn 1 câu mẫu rồi chèn nguyên văn câu hỏi vào.",
+        "Vì vậy cùng một câu hỏi luôn ra cùng câu trả lời, và câu hỏi ngoài chủ đề vẫn được \"trả lời\" bằng câu mẫu.",
+      ],
+    }),
+    send: () => ({
+      title: "Gửi câu hỏi — POST /ask",
+      text: ["Enter để gửi, Shift+Enter để xuống dòng. Câu hỏi rỗng hoặc dài quá 2000 ký tự → 422."],
+      calc: "Thứ tự server kiểm tra:\nAPI key (401) → rate limit (429) → ngân sách (402)\n→ đọc lịch sử → gọi LLM → lưu lịch sử → ghi chi phí",
+    }),
+  };
+
+  // ── Hộp giải thích: hover (chuột), focus (bàn phím), chạm/click (ghim) ──
+  const tip = $("tip");
+  let current = null;
+  let pinned = false;
+
+  function renderTip(el) {
+    const builder = HELP[el.dataset.help];
+    if (!builder) return false;
+    const h = builder(el);
+    const frag = document.createDocumentFragment();
+    const add = (tag, cls, text) => {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      node.textContent = text;
+      frag.appendChild(node);
+    };
+    add("h4", "", h.title);
+    (h.text || []).forEach((t) => add("p", "", t));
+    if (h.calc) { add("span", "lbl", "Cách tính"); add("div", "calc", h.calc); }
+    if (h.now) { add("span", "lbl", "Hiện tại"); add("div", "now", h.now); }
+    if (pinned) add("div", "close-hint", "Bấm ra ngoài hoặc nhấn Esc để đóng");
+    tip.replaceChildren(frag);
+    return true;
+  }
+
+  function position(el) {
+    const r = el.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const gap = 8;
+    let top = r.top - t.height - gap;
+    if (top < gap) top = r.bottom + gap;
+    if (top + t.height > innerHeight - gap) top = Math.max(gap, innerHeight - t.height - gap);
+    let left = r.left + r.width / 2 - t.width / 2;
+    left = Math.max(gap, Math.min(left, innerWidth - t.width - gap));
+    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+
+  function show(el, pin = false) {
+    pinned = pin;
+    if (current && current !== el) current.removeAttribute("aria-describedby");
+    if (current?.classList.contains("info")) current.setAttribute("aria-expanded", "false");
+    current = el;
+    if (!renderTip(el)) return;
+    tip.classList.toggle("pinned", pin);
+    tip.hidden = false;
+    el.setAttribute("aria-describedby", "tip");
+    if (el.classList.contains("info")) el.setAttribute("aria-expanded", "true");
+    position(el);
+  }
+
+  function hide() {
+    tip.hidden = true;
+    pinned = false;
+    if (current) {
+      current.removeAttribute("aria-describedby");
+      if (current.classList.contains("info")) current.setAttribute("aria-expanded", "false");
+    }
+    current = null;
+  }
+
+  function refreshTip() {
+    if (current && !tip.hidden) { renderTip(current); position(current); }
+  }
+
+  // Các mục chỉ để xem (không phải nút hành động) — bấm/chạm vào là ghim giải thích
+  const PIN_ON_CLICK = ".info, .stat, .chip, .pill, .code";
+
+  document.addEventListener("pointerover", (e) => {
+    if (e.pointerType !== "mouse" || pinned) return;
+    const el = e.target.closest("[data-help]");
+    if (el && el !== current) show(el);
+  });
+  document.addEventListener("pointerout", (e) => {
+    if (e.pointerType !== "mouse" || pinned || !current) return;
+    if (!current.contains(e.relatedTarget)) hide();
+  });
+  document.addEventListener("focusin", (e) => {
+    const el = e.target.closest("[data-help]");
+    if (el && !pinned) show(el);
+  });
+  document.addEventListener("focusout", () => { if (!pinned) hide(); });
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-help]");
+    if (el && el.matches(PIN_ON_CLICK)) {
+      if (current === el && pinned) hide(); else show(el, true);
+      return;
+    }
+    if (!tip.contains(e.target) && pinned) hide();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  addEventListener("resize", () => current && position(current));
+  document.addEventListener("scroll", () => current && position(current), true);
+
+  // ── Kết nối ────────────────────────────────────────────────────
+  // Khóa giữ trong sessionStorage — tiện khi demo, mất khi đóng tab
+  const session = {
+    get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* bỏ qua */ } },
+  };
+  $("key").value = session.get("apiKey") || "";
+  $("user").value = session.get("userId") || $("user").value;
+  $("key").addEventListener("input", (e) => session.set("apiKey", e.target.value.trim()));
+  $("user").addEventListener("input", (e) => session.set("userId", e.target.value.trim()));
+  $("toggle-key").addEventListener("click", () => {
+    const input = $("key");
+    const reveal = input.type === "password";
+    input.type = reveal ? "text" : "password";
+    $("toggle-key").textContent = reveal ? "Ẩn" : "Hiện";
+  });
+
+  // ── Chat ───────────────────────────────────────────────────────
+  function addMessage(kind, text) {
+    $("empty")?.remove();
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + kind;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    log.appendChild(wrap);
+    log.scrollTop = log.scrollHeight;
+    return wrap;
+  }
+
+  function chip(help, text, data = {}) {
+    const span = document.createElement("span");
+    span.className = "chip";
+    span.tabIndex = 0;
+    span.dataset.help = help;
+    Object.assign(span.dataset, data);
+    span.textContent = text;
+    return span;
+  }
+
+  function addAnswer(body, ms) {
+    const wrap = addMessage("bot", body.answer);
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const d = { in: body.tokens.in, out: body.tokens.out, cost: body.cost_usd };
+    meta.append(
+      chip("msg-hist", `history ${body.history_length}`, { hist: body.history_length }),
+      chip("msg-tok", `tokens ${body.tokens.in}+${body.tokens.out}`, d),
+      chip("msg-cost", usd(body.cost_usd), d),
+      chip("msg-ms", `${ms}ms`, { ms }),
+      chip("msg-mock", "mock LLM"),
+    );
+    wrap.appendChild(meta);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function headers(withKey = true) {
+    const h = { "Content-Type": "application/json" };
+    const key = $("key").value.trim();
+    const user = $("user").value.trim();
+    if (withKey && key) h["X-API-Key"] = key;
+    if (user) h["X-User-Id"] = user;
+    return h;
+  }
+
+  async function ask(question, withKey = true) {
+    const started = performance.now();
+    const res = await fetch("/ask", {
+      method: "POST",
+      headers: headers(withKey),
+      body: JSON.stringify({ question }),
+    });
+    const ms = Math.round(performance.now() - started);
+    let body = null;
+    try { body = await res.json(); } catch { /* không phải JSON */ }
+    return { status: res.status, body, ms };
+  }
+
+  function renderStats() {
+    $("s-req").textContent = stats.ok;
+    $("s-hist").textContent = stats.lastHist ?? 0;
+    $("s-tok").textContent = stats.tokIn + stats.tokOut;
+    $("s-cost").textContent = "$" + stats.cost.toFixed(6);
+    refreshTip();
+  }
+
+  function recordSuccess(body) {
+    stats.ok += 1;
+    stats.tokIn += body.tokens?.in || 0;
+    stats.tokOut += body.tokens?.out || 0;
+    stats.cost += body.cost_usd || 0;
+    stats.lastHist = body.history_length;
+    renderStats();
+  }
+
+  function recordError(status) {
+    stats.errors[status] = (stats.errors[status] || 0) + 1;
+    renderStats();
+  }
+
+  function showError(status, body) {
+    const text = ERRORS[status] || `${status} — ${body?.detail || "lỗi không xác định"}`;
+    addMessage(status === 429 || status === 402 ? "error warn" : "error", text);
+  }
+
+  $("composer").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const q = $("question").value.trim();
+    if (!q) return;
+    addMessage("user", q);
+    $("question").value = "";
+    $("send").disabled = true;
+    try {
+      const { status, body, ms } = await ask(q);
+      if (status === 200) {
+        addAnswer(body, ms);
+        recordSuccess(body);
+      } else {
+        showError(status, body);
+        recordError(status);
+      }
+    } catch (err) {
+      addMessage("error", "Không gọi được service: " + err.message);
+    } finally {
+      $("send").disabled = false;
+      $("question").focus();
+    }
+  });
+
+  $("question").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      $("composer").requestSubmit();
+    }
+  });
+
+  // ── Demo nhanh ─────────────────────────────────────────────────
+  function codeChip(status) {
+    const span = document.createElement("span");
+    span.className = "code c" + (String(status)[0] || "x");
+    span.tabIndex = 0;
+    span.dataset.help = "code";
+    span.dataset.code = status;
+    span.textContent = status;
+    return span;
+  }
+
+  $("btn-nokey").addEventListener("click", async () => {
+    const { status, body } = await ask("Xin chào", false);
+    addMessage(status === 401 ? "error" : "bot", `Không gửi X-API-Key → ${status} ${JSON.stringify(body)}`);
+  });
+
+  $("btn-burst").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const codes = $("codes");
+    codes.replaceChildren();
+    const counts = {};
+    for (let i = 1; i <= 12; i++) {
+      let status = "ERR";
+      try { ({ status } = await ask(`burst ${i}`)); } catch { /* mạng lỗi */ }
+      counts[status] = (counts[status] || 0) + 1;
+      codes.appendChild(codeChip(status));
+    }
+    const summary = Object.entries(counts).map(([c, n]) => `${c} ×${n}`).join(", ");
+    addMessage("error warn", `Gửi dồn 12 request: ${summary}. Sliding window 60 giây chặn các request vượt hạn mức.`);
+    btn.disabled = false;
+  });
+
+  // ── Health / ready ─────────────────────────────────────────────
+  async function probe(path, key) {
+    const el = $("pill-" + key);
+    let text;
+    try {
+      const res = await fetch(path, { cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      text = `${path} ${res.status}${body.status ? " " + body.status : ""}`;
+      el.className = "pill " + (res.ok ? "ok" : "bad");
+    } catch {
+      text = `${path} lỗi mạng`;
+      el.className = "pill bad";
+    }
+    el.textContent = text;
+    probes[key] = { text, at: Date.now() };
+    if (current === el) refreshTip();
+  }
+  function probeAll() {
+    probe("/health", "health");
+    probe("/ready", "ready");
+  }
+  $("btn-probe").addEventListener("click", probeAll);
+  probeAll();
+  setInterval(probeAll, 15000);
+
+  // ── Trang Pipeline: kiểm tra trực tiếp ─────────────────────────
+  const LIVE_CHECKS = {
+    health: async () => {
+      const res = await fetch("/health", { cache: "no-store" });
+      const body = await res.json();
+      return { pass: res.status === 200 && body.status === "ok", text: `${res.status} ${JSON.stringify(body)}` };
+    },
+    ready: async () => {
+      const res = await fetch("/ready", { cache: "no-store" });
+      const body = await res.json();
+      return { pass: res.status === 200 && body.status === "ready", text: `${res.status} ${JSON.stringify(body)}` };
+    },
+    nokey: async () => {
+      const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: "kiểm tra không key" }),
+      });
+      return { pass: res.status === 401, text: `${res.status} ${JSON.stringify(await res.json())}` };
+    },
+    badkey: async () => {
+      const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": "khoa-sai-de-kiem-tra" },
+        body: JSON.stringify({ question: "kiểm tra key sai" }),
+      });
+      return { pass: res.status === 401, text: `${res.status} ${JSON.stringify(await res.json())}` };
+    },
+  };
+  let liveRan = false;
+
+  async function runLiveChecks() {
+    liveRan = true;
+    for (const row of document.querySelectorAll("#live .live-row")) {
+      const mark = row.querySelector(".mark");
+      const res = row.querySelector(".res");
+      mark.className = "mark";
+      mark.textContent = "…";
+      res.textContent = "đang gọi…";
+      try {
+        const out = await LIVE_CHECKS[row.dataset.check]();
+        mark.className = "mark " + (out.pass ? "pass" : "fail");
+        mark.textContent = out.pass ? "✓" : "✗";
+        res.textContent = out.text;
+      } catch (err) {
+        mark.className = "mark fail";
+        mark.textContent = "✗";
+        res.textContent = "lỗi mạng: " + err.message;
+      }
+    }
+  }
+  $("btn-live").addEventListener("click", runLiveChecks);
+
+  // ── Trang Pipeline: sơ đồ tuần tự ──────────────────────────────
+  // Cột: 0 trình duyệt, 1 Railway edge, 2 container agent, 3 Redis
+  const LANES = [
+    ["Trình duyệt", "người dùng"],
+    ["Railway edge", "HTTPS, định tuyến"],
+    ["Container agent", "FastAPI :8080"],
+    ["Redis", "redis.railway.internal"],
+  ];
+  const SEQ = [
+    { phase: "① Mở trang" },
+    { from: 0, to: 1, label: "GET /", sub: "HTTPS, mã hóa TLS" },
+    { from: 1, to: 2, label: "GET /", sub: "HTTP nội bộ tới cổng $PORT = 8080" },
+    { from: 2, to: 0, label: "200 index.html", sub: "qua edge, mã hóa lại TLS", resp: true },
+    { self: 0, label: "hiện trang; gọi /health, /ready mỗi 15 giây" },
+    { phase: "② Gửi câu hỏi" },
+    { from: 0, to: 1, label: "POST /ask", sub: "header X-API-Key, X-User-Id" },
+    { from: 1, to: 2, label: "POST /ask", sub: "giải mã TLS, chuyển tới :8080" },
+    { self: 2, label: "kiểm tra body", code: "422" },
+    { self: 2, label: "so API key (compare_digest)", code: "401" },
+    { from: 2, to: 3, label: "rate limit", sub: "ZREMRANGEBYSCORE · ZCARD · ZADD", code: "429", db: true },
+    { from: 2, to: 3, label: "ngân sách tháng", sub: "GET cost:<user>:<YYYY-MM>", code: "402", db: true },
+    { from: 2, to: 3, label: "đọc lịch sử", sub: "LRANGE history:<user>", db: true },
+    { self: 2, label: "mock LLM soạn câu trả lời" },
+    { from: 2, to: 3, label: "ghi lại", sub: "RPUSH + LTRIM history · INCRBYFLOAT cost", db: true },
+    { self: 2, label: "log JSON ask_completed → Railway Logs" },
+    { phase: "③ Nhận câu trả lời" },
+    { from: 2, to: 1, label: "200 JSON", sub: "answer, history_length, tokens, cost_usd", resp: true },
+    { from: 1, to: 0, label: "200 JSON", sub: "mã hóa TLS", resp: true },
+    { self: 0, label: "hiện câu trả lời và số liệu" },
+  ];
+
+  function renderSequence() {
+    const seq = $("seq");
+    const el = (cls, text) => {
+      const node = document.createElement("div");
+      node.className = cls;
+      if (text) node.textContent = text;
+      return node;
+    };
+    LANES.forEach(([name, sub], i) => {
+      const lane = el("lane");
+      lane.style.gridColumn = i + 1;
+      const b = document.createElement("b");
+      b.textContent = name;
+      const small = document.createElement("small");
+      small.textContent = sub;
+      lane.append(b, small);
+      seq.appendChild(lane);
+    });
+    SEQ.forEach((step, i) => {
+      const row = i + 2;
+      let node;
+      if (step.phase) {
+        node = el("phase");
+        const span = document.createElement("span");
+        span.textContent = step.phase;
+        node.appendChild(span);
+      } else if (step.self !== undefined) {
+        node = el("self", step.label);
+        node.style.gridColumn = step.self + 1;
+        if (step.code) {
+          const c = el("ecode", step.code);
+          c.title = `trả ${step.code} nếu không đạt`;
+          node.appendChild(c);
+        }
+      } else {
+        const lo = Math.min(step.from, step.to);
+        const hi = Math.max(step.from, step.to);
+        const inset = `${50 / (hi - lo + 1)}%`;   // từ tâm cột đầu tới tâm cột cuối
+        node = el(`m ${step.to > step.from ? "right" : "left"}${step.resp ? " resp" : ""}${step.db ? " db" : ""}`);
+        node.style.gridColumn = `${lo + 1} / ${hi + 2}`;
+        const lab = el("lab");
+        lab.style.margin = `0 ${inset}`;
+        const b = document.createElement("b");
+        b.textContent = step.label;
+        lab.appendChild(b);
+        if (step.code) {
+          const c = el("ecode", step.code);
+          c.title = `trả ${step.code} nếu không đạt`;
+          lab.appendChild(c);
+        }
+        if (step.sub) {
+          const small = document.createElement("small");
+          small.textContent = step.sub;
+          lab.appendChild(small);
+        }
+        const line = el("line");
+        line.style.left = inset;
+        line.style.right = inset;
+        node.append(lab, line);
+      }
+      node.style.gridRow = row;
+      seq.appendChild(node);
+    });
+    LANES.forEach((_, i) => {
+      const life = el("life");
+      life.style.gridColumn = i + 1;
+      life.style.gridRow = `2 / ${SEQ.length + 2}`;
+      seq.appendChild(life);
+    });
+  }
+  renderSequence();
+
+  // ── Trang Pipeline: mở/thu gọn, nhảy tới bước ──────────────────
+  const steps = [...document.querySelectorAll("details.step")];
+  $("btn-expand").addEventListener("click", (e) => {
+    const open = steps.some((s) => !s.open);
+    steps.forEach((s) => { s.open = open; });
+    e.currentTarget.textContent = open ? "Thu gọn tất cả" : "Mở tất cả";
+  });
+  $("jump").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-target]");
+    if (!btn) return;
+    const step = $(btn.dataset.target);
+    step.open = true;
+    step.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  const jumpButtons = new Map(
+    [...document.querySelectorAll("#jump button")].map((b) => [b.dataset.target, b])
+  );
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      jumpButtons.forEach((b) => b.classList.remove("active"));
+      jumpButtons.get(entry.target.id)?.classList.add("active");
+    }
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  steps.forEach((s) => observer.observe(s));
+
+  // ── Menu: #/chat và #/pipeline ─────────────────────────────────
+  function route() {
+    const view = location.hash === "#/pipeline" ? "pipeline" : "chat";
+    $("view-chat").hidden = view !== "chat";
+    $("view-pipeline").hidden = view !== "pipeline";
+    $("sub-chat").hidden = view !== "chat";
+    $("sub-pipeline").hidden = view !== "pipeline";
+    for (const [id, name] of [["tab-chat", "chat"], ["tab-pipeline", "pipeline"]]) {
+      if (name === view) $(id).setAttribute("aria-current", "page");
+      else $(id).removeAttribute("aria-current");
+    }
+    document.title = view === "chat" ? "Day 12 Agent" : "Pipeline · Day 12 Agent";
+    hide();
+    if (view === "pipeline" && !liveRan) runLiveChecks();
+  }
+  addEventListener("hashchange", route);
+  route();
+})();
+</script>
+</body>
+</html>
